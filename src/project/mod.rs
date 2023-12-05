@@ -64,8 +64,6 @@ pub fn build_database(client: &mut Client) {
 #[allow(dead_code)]
 pub fn insert_data(client: &mut Client) {
     // TODO Insert some random data here.
-    // If there's a way to generate random data for this database, then that wouldn't
-    // be a terrible plan.
     // For now, maybe just create a single entry for each table.
     // "Consistency is the hobgoblin of small minds."
     let person =
@@ -85,6 +83,22 @@ pub fn clear_database(client: &mut Client) {
     ";
 
     client.batch_execute(queries).unwrap();
+}
+
+pub fn query_one(client: &mut Client) {
+    // Get the average amount of money that is required to start a new employee
+    // in any given department (use nurses as an example)
+}
+
+pub fn query_two(client: &mut Client) {
+    // Get the average amount of money that is required to keep a given make/model
+    // of device in service. This means the average amount of money that is spent
+    // on repairs. This kind of data can be used to determine if a device is worth
+    // keeping in service, and can allow for depreciation budgeting for that model.
+}
+
+pub fn query_three(client: &mut Client) {
+    // Some third query that I haven't quite thought of yet.
 }
 
 #[cfg(test)]
