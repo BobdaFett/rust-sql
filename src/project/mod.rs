@@ -1,9 +1,10 @@
 use postgres::Client;
+use std::{fs::File, io::Write};
 
 pub fn build_database(client: &mut Client) {
     // Create the new database.
     // I haven't even planned this one out yet.
-    let create_user = "CREATE TABLE PERSON (
+    let create_user = "CREATE TABLE EMPLOYEE (
         UserID SERIAL NOT NULL,
         FirstName CHAR(32),
         LastName CHAR(32),
@@ -36,20 +37,31 @@ pub fn build_database(client: &mut Client) {
         Price REAL,
         PRIMARY KEY (SerialNumber),
         FOREIGN KEY (WarrantyTypeID) REFERENCES WARRANTY(WarrantyTypeID),
-        FOREIGN KEY (UserID) REFERENCES PERSON(UserID))";
+        FOREIGN KEY (UserID) REFERENCES EMPLOYEE(UserID))";
     let create_service = "CREATE TABLE SERVICE_RECORD (
         TicketID SERIAL NOT NULL,
         ServiceDate DATE,
         ServiceType VARCHAR(255),
         ServiceReason VARCHAR(255),
-        ServicePrice REAL,
+        Price REAL,
         TechnicianID INT,
         DeviceSerial CHAR(32),
         UserID INT,
         PRIMARY KEY (TicketID),
-        FOREIGN KEY (UserID) REFERENCES PERSON(UserID),
-        FOREIGN KEY (TechnicianID) REFERENCES PERSON(UserID))";
-
+        FOREIGN KEY (UserID) REFERENCES EMPLOYEE(UserID),
+        FOREIGN KEY (TechnicianID) REFERENCES EMPLOYEE(UserID))";
+    let create_peripheral = "CREATE TABLE PERIPHERAL (
+        PeripheralID SERIAL NOT NULL,
+        PeripheralType CHAR(32),
+        Price REAL,
+        UserID INT,
+        PRIMARY KEY (PeripheralId),
+        FOREIGN KEY (UserID) REFERENCES EMPLOYEE(UserID))";
+    
+    // Create the database.
+    // client.execute("CREATE DATABASE if not exists project", &[]).unwrap();
+    
+    // Create the tables.
     client
         .execute(create_user, &[])
         .expect("Failed to create user table");
@@ -62,6 +74,9 @@ pub fn build_database(client: &mut Client) {
     client
         .execute(create_service, &[])
         .expect("Failed to create service table");
+    client
+        .execute(create_peripheral, &[])
+        .expect("Failed to create peripheral table");
 }
 
 #[allow(dead_code)]
@@ -69,10 +84,25 @@ pub fn insert_data(client: &mut Client) {
     // TODO Insert some random data here.
     // For now, maybe just create a single entry for each table.
     // "Consistency is the hobgoblin of small minds."
-    let person =
-        "INSERT INTO PERSON (UserID, FirstName, LastName, Status, DateActive, DateInactive)
-        VALUES (1, 'Lucas', 'Vas', 'Active', '11/15/2023', NULL)";
-    client.execute(person, &[]).unwrap();
+    // client.execute(person, &[]).unwrap();
+    
+    let home_dir = std::env::var("USERPROFILE").unwrap();
+
+    // I have created files that contain a series of data insertion statements.
+    // Read these files into the program and execute them.
+    let insert_employee = std::fs::read_to_string(home_dir.clone() + "\\RustroverProjects\\rust-sql\\src\\project\\input\\EMPLOYEE.sql").expect("Could not read EMPLOYEE.sql");
+    let insert_devices = std::fs::read_to_string(home_dir.clone() + "\\RustroverProjects\\rust-sql\\src\\project\\input\\DEVICE.sql").expect("Coult not read DEVICE.sql");
+    let insert_warranty = std::fs::read_to_string(home_dir.clone() + "\\RustroverProjects\\rust-sql\\src\\project\\input\\WARRANTY.sql").expect("Could not read WARRANTY.sql");
+    let insert_service = std::fs::read_to_string(home_dir.clone() + "\\RustroverProjects\\rust-sql\\src\\project\\input\\SERVICE_RECORD.sql").expect("Could not read SERVICE_RECORD.sql");
+    let insert_peripheral = std::fs::read_to_string(home_dir.clone() + "\\RustroverProjects\\rust-sql\\src\\project\\input\\PERIPHERAL.sql").expect("Could not read PERIPHERAL.sql");
+
+    // Execute the statements.
+    // They already have \n and ; at the end, so we don't need to add them.
+    client.batch_execute(insert_employee.as_str()).unwrap();
+    client.batch_execute(insert_warranty.as_str()).unwrap();
+    client.batch_execute(insert_devices.as_str()).unwrap();
+    client.batch_execute(insert_service.as_str()).unwrap();
+    client.batch_execute(insert_peripheral.as_str()).unwrap();
 }
 
 #[allow(dead_code)]
@@ -82,20 +112,90 @@ pub fn clear_database(client: &mut Client) {
         DROP TABLE IF EXISTS SERVICE_RECORD;
         DROP TABLE IF EXISTS DEVICE;
         DROP TABLE IF EXISTS WARRANTY;
-        DROP TABLE IF EXISTS PERSON CASCADE;
+        DROP TABLE IF EXISTS PERIPHERAL;
+        DROP TABLE IF EXISTS EMPLOYEE CASCADE;
     ";
 
     client.batch_execute(queries).unwrap();
 }
 
+pub fn print_tables(client: &mut Client) {
+    // Print the contents of the tables.
+    let queries = "
+        SELECT * FROM EMPLOYEE;
+    ";
+
+    for row in client.query(queries, &[]).unwrap() {
+        println!("Employee: {} {} {} {} {} {} {}",
+            row.get::<_, i32>(0),
+            row.get::<_, String>(1),
+            row.get::<_, String>(2),
+            row.get::<_, String>(3),
+            row.get::<_, String>(4),
+            row.get::<_, String>(5),
+            row.get::<_, String>(6));
+    }
+
+    for row in client.query("SELECT * FROM DEVICE", &[]).unwrap() {
+        println!("Device: {} {} {} {} {} {} {} {} {} {} {} {}",
+            row.get::<_, String>(0),
+            row.get::<_, String>(1),
+            row.get::<_, String>(2),
+            row.get::<_, String>(3),
+            row.get::<_, String>(4),
+            row.get::<_, i32>(5),
+            row.get::<_, String>(6),
+            row.get::<_, String>(7),
+            row.get::<_, i32>(8),
+            row.get::<_, String>(9),
+            row.get::<_, f32>(10),
+            row.get::<_, i32>(11));
+    }
+
+    for row in client.query("SELECT * FROM WARRANTY", &[]).unwrap() {
+        println!("Warranty: {} {} {} {} {}",
+            row.get::<_, i32>(0),
+            row.get::<_, i32>(1),
+            row.get::<_, i32>(2),
+            row.get::<_, i32>(3),
+            row.get::<_, String>(4));
+    }
+
+    for row in client.query("SELECT * FROM SERVICE_RECORD", &[]).unwrap() {
+        println!("Service Record: {} {} {} {} {} {} {} {}",
+            row.get::<_, i32>(0),
+            row.get::<_, String>(1),
+            row.get::<_, String>(2),
+            row.get::<_, String>(3),
+            row.get::<_, f32>(4),
+            row.get::<_, i32>(5),
+            row.get::<_, String>(6),
+            row.get::<_, i32>(7));
+    }
+
+    for row in client.query("SELECT * FROM PERIPHERAL", &[]).unwrap() {
+        println!("Peripheral: {} {} {} {}",
+            row.get::<_, i32>(0),
+            row.get::<_, String>(1),
+            row.get::<_, f32>(2),
+            row.get::<_, i32>(3));
+    }
+}
+
+#[allow(dead_code)]
 pub fn query_one(client: &mut Client) {
     // Get the average amount of money that is required to start a new employee
-    // in any given department (use nurses as an example)
+    // in any given department (use 'Services' as an example)
+    // This is the average of the sum of the price of all devices that are assigned
+    // to people in the given department. This includes peripherals, such as mice and
+    // monitors.
     let query = "
-        SELECT AVG(D.Price) 
-        FROM DEVICE D, PERSON P 
-        WHERE D.UserID = P.UserID AND
-            P.Department = 'Nurse'";
+        SELECT AVG(D.Price + PE.Price)
+        FROM DEVICE D, EMPLOYEE P, PERIPHERAL PE
+        WHERE P.Department = 'Services' AND
+            D.UserID = P.UserID AND
+            PE.UserID = P.UserID
+        GROUP BY P.UserID";
 
     for row in client.query(query, &[]).unwrap() {
         println!("Average cost of a device for a nurse: {}", row.get::<_, f32>(0));
@@ -135,6 +235,9 @@ mod testing {
         // Run tests.
         super::clear_database(&mut client);
         super::build_database(&mut client);
+        
+        // Insert our fake data into the database.
+        super::insert_data(&mut client);
     }
 
     #[test]
@@ -147,11 +250,11 @@ mod testing {
         super::build_database(&mut client);
 
         // Ensure that there are no elements in the database.
-        assert_eq!(client.query("SELECT * FROM PERSON", &[]).unwrap().len(), 0);
+        assert_eq!(client.query("SELECT * FROM EMPLOYEE", &[]).unwrap().len(), 0);
 
         // Run tests
         // Insert data.
-        let person = "INSERT INTO PERSON (UserID, FirstName, LastName, Status, DateActive, DateInactive)
+        let person = "INSERT INTO EMPLOYEE (UserID, FirstName, LastName, Status, DateActive, DateInactive)
             VALUES (1, 'Lucas', 'Vas', 'Active', '11/15/2023', NULL)";
 
         let warranty = "INSERT INTO WARRANTY (WarrantyTypeID, YearsParts, YearsLabor, YearsService, WarrantyType)
@@ -169,7 +272,7 @@ mod testing {
         client.execute(service, &[]).unwrap();
 
         // Assertion tests - get data from the database and make sure it's correct.
-        for row in client.query("SELECT FirstName, LastName FROM PERSON", &[]).expect("Failed to query person") {
+        for row in client.query("SELECT FirstName, LastName FROM EMPLOYEE", &[]).expect("Failed to query person") {
             assert_eq!(row.get::<_, String>(0).trim(), "Lucas");
             assert_eq!(row.get::<_, String>(1).trim(), "Vas");
         }
@@ -196,5 +299,22 @@ mod testing {
             assert_eq!(row.get::<_, i32>(3), 1);
             assert_eq!(row.get::<_, String>(4).trim(), "Basic");
         }
+    }
+
+    #[test]
+    fn test_q1() {
+        println!("Testing.");
+
+        let mut client =
+            Client::connect("host=localhost user=postgres password=IN$piron54286", NoTls).unwrap();
+
+        super::clear_database(&mut client);
+        super::build_database(&mut client);
+        super::insert_data(&mut client);
+
+        // We then want to test our queries.
+        super::query_one(&mut client); // Unfortunately I don't know what the assertion should be.
+        // super::query_two(&mut client);
+        // super::query_three(&mut client);
     }
 }
